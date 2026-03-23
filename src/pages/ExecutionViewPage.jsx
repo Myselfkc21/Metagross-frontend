@@ -171,10 +171,15 @@ function ExecutionViewPage() {
       try {
         const payload = JSON.parse(event.data);
         const status = payload.status ?? "queue";
+        const agentKey = String(
+          payload.agentId ?? payload.agent_id ?? payload.id ?? "",
+        );
+
+        if (!agentKey) return;
 
         setNodes((currentNodes) =>
           currentNodes.map((node) => {
-            if (node.id !== payload.agentId) return node;
+            if (String(node.id) !== agentKey) return node;
             return {
               ...node,
               data: {
@@ -192,7 +197,7 @@ function ExecutionViewPage() {
     };
 
     source.onerror = () => {
-      source.close();
+      // Keep the connection open so EventSource can retry automatically.
     };
 
     return () => {
