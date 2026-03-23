@@ -121,42 +121,33 @@ function ExecutionViewPage() {
 
       try {
         const response = await api.get(`/execution/${executionId}`);
-        const execution =
-          response.data?.execution ??
-          response.data?.data ??
-          response.data ??
-          {};
+        // Response shape: { success, message, data: { id, workflow_id, workflow, agents, ... } }
+        const execution = response.data?.data ?? response.data ?? {};
 
-        let workflowPayload =
-          execution.workflow ?? execution.workflowData ?? execution.graph;
-
-        const workflowId = execution.workflowId ?? execution.workflow_id;
-
-        if (!workflowPayload && workflowId) {
-          const workflowResponse = await api.get(`/workflow/${workflowId}`);
-          workflowPayload =
-            workflowResponse.data?.workflow ??
-            workflowResponse.data?.data ??
-            workflowResponse.data;
+        // Build a lookup from agent_id → agent record (status + output)
+        const agentMap = {};
+        for (const agent of execution.agents ?? []) {
+          const key = agent.agent_id ?? agent.agentId ?? agent.id;
+          if (key) agentMap[String(key)] = agent;
         }
 
-        if (!workflowPayload) {
-          workflowPayload = {
-            agents: execution.agents ?? execution.nodes ?? [],
-            dependencies: execution.dependencies ?? execution.edges ?? [],
-          };
-        }
+        // Workflow graph lives at execution.workflow.graph
+        const workflowPayload = execution.workflow ?? {};
 
         const graph = workflowToFlow(workflowPayload);
         setNodes(
-          graph.nodes.map((node) => ({
-            ...node,
-            data: {
-              ...node.data,
-              readonly: true,
-              status: node.data.status ?? "queue",
-            },
-          })),
+          graph.nodes.map((node) => {
+            const agentRecord = agentMap[node.id] ?? {};
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                readonly: true,
+                status: agentRecord.status ?? "queue",
+                output: agentRecord.output ?? null,
+              },
+            };
+          }),
         );
         setEdges(graph.edges);
       } catch (requestError) {

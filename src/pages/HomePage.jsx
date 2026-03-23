@@ -57,9 +57,12 @@ function HomePage() {
     try {
       const response = await api.get("/execution");
       const payload = response.data;
+      // Response shape: { success, message, data: [...] } or plain array
       const list = Array.isArray(payload)
         ? payload
-        : (payload?.executions ?? payload?.data ?? []);
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : (payload?.executions ?? []);
       setExecutions(Array.isArray(list) ? list : []);
     } catch (requestError) {
       setExecutionsError(
