@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+@import '@xyflow/react/dist/style.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Space Grotesk', sans-serif;
+  color: #0f172a;
+  background-color: #f8fafc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(8, 145, 178, 0.1), transparent 45%),
+    radial-gradient(circle at 80% 85%, rgba(2, 132, 199, 0.12), transparent 42%),
+    #f8fafc;
+  color: #0f172a;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+html.dark body {
+  background:
+    radial-gradient(circle at 20% 15%, rgba(34, 211, 238, 0.16), transparent 45%),
+    radial-gradient(circle at 80% 85%, rgba(59, 130, 246, 0.18), transparent 42%),
+    #020617;
+  color: #f8fafc;
+}
+
+pre,
+code {
+  font-family: 'JetBrains Mono', monospace;
+}
