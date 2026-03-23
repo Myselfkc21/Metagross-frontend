@@ -10,6 +10,32 @@ import {
   extractWorkflowName,
 } from "../lib/workflowGraph";
 
+const EXECUTION_STATUS_STYLES = {
+  queue: "bg-slate-500/20 text-slate-400",
+  running: "bg-yellow-500/20 text-yellow-400",
+  completed: "bg-emerald-500/20 text-emerald-400",
+  failed: "bg-rose-500/20 text-rose-400",
+};
+
+function extractExecutionId(execution) {
+  return execution?.id ?? execution?._id ?? execution?.executionId ?? "";
+}
+
+function extractExecutionStatus(execution) {
+  return execution?.status ?? "queue";
+}
+
+function extractExecutionWorkflowId(execution) {
+  return execution?.workflowId ?? execution?.workflow_id ?? "—";
+}
+
+function extractExecutionCreatedAt(execution) {
+  const value = execution?.createdAt ?? execution?.created_at ?? execution?.timestamp;
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+}
+
 function HomePage() {
   const navigate = useNavigate();
   const [workflows, setWorkflows] = useState([]);
@@ -21,6 +47,30 @@ function HomePage() {
   const [newWorkflowName, setNewWorkflowName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [deletingWorkflowId, setDeletingWorkflowId] = useState("");
+  const [executions, setExecutions] = useState([]);
+  const [isLoadingExecutions, setIsLoadingExecutions] = useState(true);
+  const [executionsError, setExecutionsError] = useState("");
+
+  const loadExecutions = useCallback(async () => {
+    setIsLoadingExecutions(true);
+    setExecutionsError("");
+    try {
+      const response = await api.get("/execution");
+      const payload = response.data;
+      const list = Array.isArray(payload)
+        ? payload
+        : (payload?.executions ?? payload?.data ?? []);
+      setExecutions(Array.isArray(list) ? list : []);
+    } catch (requestError) {
+      setExecutionsError(
+        requestError?.response?.data?.message ||
+          requestError.message ||
+          "Failed to load executions.",
+      );
+    } finally {
+      setIsLoadingExecutions(false);
+    }
+  }, []);
 
   const loadWorkflows = useCallback(async () => {
     setIsLoading(true);
@@ -46,7 +96,8 @@ function HomePage() {
 
   useEffect(() => {
     loadWorkflows();
-  }, [loadWorkflows]);
+    loadExecutions();
+  }, [loadWorkflows, loadExecutions]);
 
   const handleCreateWorkflow = async (event) => {
     event.preventDefault();
@@ -250,6 +301,107 @@ function HomePage() {
           })}
         </div>
       ) : null}
+
+      {/* Executions section */}
+      <div className="mt-12">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+              Recent Executions
+            </h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              All past and in-progress workflow runs.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadExecutions}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {executionsError ? (
+          <ErrorState message={executionsError} onRetry={loadExecutions} />
+        ) : null}
+
+        {isLoadingExecutions ? (
+          <div className="mt-4">
+            <LoadingSpinner label="Loading executions..." />
+          </div>
+        ) : !executions.length ? (
+          <div className="rounded-xl border border-slate-300 bg-white/80 p-6 text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
+            No executions yet.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-slate-300 bg-white/90 dark:border-slate-700/80 dark:bg-slate-900/80">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left dark:border-slate-700">
+                  <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400">
+                    Execution ID
+                  </th>
+                  <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400">
+                    Workflow
+                  </th>
+                  <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400">
+                    Started
+                  </th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {executions.map((execution, index) => {
+                  const execId = extractExecutionId(execution);
+                  const status = extractExecutionStatus(execution);
+                  const statusStyle =
+                    EXECUTION_STATUS_STYLES[status] ??
+                    EXECUTION_STATUS_STYLES.queue;
+
+                  return (
+                    <tr
+                      key={execId || index}
+                      className="border-b border-slate-100 last:border-0 dark:border-slate-800"
+                    >
+                      <td className="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">
+                        {execId || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                        {extractExecutionWorkflowId(execution)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${statusStyle}`}
+                        >
+                          {status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
+                        {extractExecutionCreatedAt(execution)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {execId ? (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/execution/${execId}`)}
+                            className="rounded-md bg-cyan-500 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-cyan-400"
+                          >
+                            View
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       <RunWorkflowModal
         workflow={selectedWorkflow}
