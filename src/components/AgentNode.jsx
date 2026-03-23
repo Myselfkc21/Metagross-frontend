@@ -1,13 +1,30 @@
 import { Handle, Position } from "@xyflow/react";
-import { getAgentTypeClass, getStatusClass } from "../lib/workflowGraph";
+
+const typeBorderClasses = {
+  researcher: "agent-node-type-researcher",
+  writer: "agent-node-type-writer",
+  editor: "agent-node-type-editor",
+  default: "agent-node-type-default",
+};
+
+const statusPillClasses = {
+  completed:
+    "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200",
+  running:
+    "border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-200",
+  failed: "border-rose-500/50 bg-rose-500/15 text-rose-700 dark:text-rose-200",
+  queue:
+    "border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-200",
+};
 
 function AgentNode({ data }) {
-  const typeClass = getAgentTypeClass(data.type);
-  const statusClass = data.readonly ? getStatusClass(data.status) : "";
+  const typeClass = typeBorderClasses[data.type] ?? typeBorderClasses.default;
+  const statusClass = statusPillClasses[data.status] ?? statusPillClasses.queue;
+  const runningClass = data.status === "running" ? "agent-node-running" : "";
 
   return (
     <div
-      className={`min-w-52 rounded-lg border px-3 py-2 text-left shadow-lg backdrop-blur ${typeClass} ${statusClass}`}
+      className={`agent-node min-w-52 rounded-xl border px-3 py-2 text-left shadow-lg backdrop-blur ${typeClass} ${runningClass}`}
     >
       <Handle
         type="target"
@@ -24,9 +41,11 @@ function AgentNode({ data }) {
         {(data.prompt || "").slice(0, 60) || "No prompt yet"}
       </p>
       {data.readonly ? (
-        <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-800 dark:text-slate-100">
-          Status: {data.status}
-        </p>
+        <span
+          className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusClass}`}
+        >
+          {data.status}
+        </span>
       ) : null}
       <Handle
         type="source"

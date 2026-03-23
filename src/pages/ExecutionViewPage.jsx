@@ -1,5 +1,12 @@
-import { Background, Controls, MiniMap, ReactFlow } from "@xyflow/react";
+import {
+  Background,
+  BackgroundVariant,
+  Controls,
+  MiniMap,
+  ReactFlow,
+} from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { useParams } from "react-router-dom";
 import AgentNode from "../components/AgentNode";
 import ErrorState from "../components/ErrorState";
@@ -11,6 +18,30 @@ const nodeTypes = {
   agent: AgentNode,
 };
 
+function statusBadgeClass(status = "queue") {
+  if (status === "completed") {
+    return "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200";
+  }
+
+  if (status === "running") {
+    return "border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-200";
+  }
+
+  if (status === "failed") {
+    return "border-rose-500/50 bg-rose-500/15 text-rose-700 dark:text-rose-200";
+  }
+
+  return "border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-200";
+}
+
+function normalizeAgentType(type = "") {
+  if (["researcher", "writer", "editor"].includes(type)) {
+    return type;
+  }
+
+  return "default";
+}
+
 function ExecutionViewPage() {
   const { executionId } = useParams();
   const [nodes, setNodes] = useState([]);
@@ -18,6 +49,7 @@ function ExecutionViewPage() {
   const [logs, setLogs] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [showCompleteToast, setShowCompleteToast] = useState(false);
 
   useEffect(() => {
     const loadExecution = async () => {
@@ -90,6 +122,8 @@ function ExecutionViewPage() {
         setLogs((current) => [
           {
             agentId: payload.agentId,
+            agentName: payload.agentName ?? payload.agentId,
+            agentType: payload.agentType ?? payload.type,
             status,
             output: payload.output,
             timestamp,
@@ -118,6 +152,8 @@ function ExecutionViewPage() {
         setLogs((current) => [
           {
             agentId: "unknown",
+            agentName: "unknown",
+            agentType: "default",
             status: "queue",
             output: event.data,
             timestamp: new Date().toLocaleTimeString(),
@@ -141,11 +177,46 @@ function ExecutionViewPage() {
     return nodes.every((node) => node.data.status === "completed");
   }, [nodes]);
 
+  const isRunning = useMemo(
+    () => nodes.some((node) => node.data.status === "running"),
+    [nodes],
+  );
+
+  const typeByAgentId = useMemo(() => {
+    return nodes.reduce((accumulator, node) => {
+      accumulator[node.id] = node.data.type;
+      return accumulator;
+    }, {});
+  }, [nodes]);
+
+  const renderedEdges = useMemo(() => {
+    return edges.map((edge) => ({
+      ...edge,
+      animated: isRunning,
+      className: isRunning ? "workflow-edge-running" : "workflow-edge-idle",
+    }));
+  }, [edges, isRunning]);
+
+  useEffect(() => {
+    if (!isComplete) {
+      setShowCompleteToast(false);
+      return;
+    }
+
+    setShowCompleteToast(true);
+
+    const timeoutId = window.setTimeout(() => {
+      setShowCompleteToast(false);
+    }, 3200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isComplete]);
+
   return (
     <section className="grid h-[calc(100vh-4rem)] grid-cols-1 lg:grid-cols-[1fr_340px]">
       <div className="relative border-b border-slate-300 lg:border-b-0 lg:border-r dark:border-slate-800">
-        {isComplete ? (
-          <div className="absolute left-4 right-4 top-4 z-20 rounded-lg border border-emerald-500/60 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-200">
+        {showCompleteToast ? (
+          <div className="workflow-toast absolute right-4 top-4 z-30 rounded-xl border border-emerald-500/40 bg-slate-950/85 px-4 py-2 text-sm font-semibold text-emerald-200 shadow-2xl backdrop-blur">
             Workflow Complete
           </div>
         ) : null}
@@ -163,16 +234,21 @@ function ExecutionViewPage() {
         ) : (
           <ReactFlow
             nodes={nodes}
-            edges={edges}
+            edges={renderedEdges}
             nodeTypes={nodeTypes}
             fitView
             nodesDraggable={false}
             nodesConnectable={false}
             elementsSelectable={false}
             zoomOnDoubleClick={false}
-            className="bg-slate-100 dark:bg-slate-950"
+            className="execution-flow bg-slate-100 dark:bg-slate-950"
           >
-            <Background color="#334155" gap={24} />
+            <Background
+              variant={BackgroundVariant.Dots}
+              color="#334155"
+              gap={18}
+              size={1.1}
+            />
             <MiniMap
               pannable
               zoomable
@@ -193,27 +269,56 @@ function ExecutionViewPage() {
 
         <div className="mt-4 space-y-3">
           {logs.length ? (
-            logs.map((log, index) => (
-              <article
-                key={`${log.agentId}-${log.timestamp}-${index}`}
-                className="rounded-lg border border-slate-300 bg-white p-3 dark:border-slate-700 dark:bg-slate-950"
-              >
-                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                  <span className="font-semibold text-cyan-700 dark:text-cyan-300">
-                    {log.agentId}
-                  </span>
-                  <span>{log.timestamp}</span>
-                </div>
-                <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">
-                  Status: {log.status}
-                </p>
-                {log.status === "completed" && log.output ? (
-                  <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded bg-slate-100 p-2 text-xs text-emerald-700 dark:bg-slate-900 dark:text-emerald-200">
-                    {log.output}
-                  </pre>
-                ) : null}
-              </article>
-            ))
+            logs.map((log, index) => {
+              const agentType = normalizeAgentType(
+                log.agentType ?? typeByAgentId[log.agentId] ?? "default",
+              );
+
+              return (
+                <article
+                  key={`${log.agentId}-${log.timestamp}-${index}`}
+                  className="rounded-xl border border-slate-300 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-950"
+                >
+                  <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-cyan-700 dark:text-cyan-300">
+                        {log.agentName ?? log.agentId}
+                      </p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span
+                          className={`agent-type-badge inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide agent-type-${agentType}`}
+                        >
+                          {agentType === "default" ? "agent" : agentType}
+                        </span>
+                        <span
+                          className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusBadgeClass(
+                            log.status,
+                          )}`}
+                        >
+                          {log.status}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="shrink-0">{log.timestamp}</span>
+                  </div>
+
+                  {log.output ? (
+                    <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50/80 p-2 dark:border-slate-700 dark:bg-slate-900/60">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                        Output
+                      </summary>
+                      <div className="markdown-log mt-2 text-sm text-slate-700 dark:text-slate-200">
+                        <ReactMarkdown>{String(log.output)}</ReactMarkdown>
+                      </div>
+                    </details>
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      No output yet.
+                    </p>
+                  )}
+                </article>
+              );
+            })
           ) : (
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Waiting for events...

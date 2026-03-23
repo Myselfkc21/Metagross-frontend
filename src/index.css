@@ -43,3 +43,166 @@ pre,
 code {
   font-family: 'JetBrains Mono', monospace;
 }
+
+.agent-node {
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 0.94));
+  border-color: rgba(148, 163, 184, 0.5);
+  border-left-width: 5px;
+}
+
+html.dark .agent-node {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.96));
+  border-color: rgba(100, 116, 139, 0.6);
+}
+
+.agent-node-type-researcher {
+  border-left-color: rgba(59, 130, 246, 0.95);
+}
+
+.agent-node-type-writer {
+  border-left-color: rgba(16, 185, 129, 0.95);
+}
+
+.agent-node-type-editor {
+  border-left-color: rgba(168, 85, 247, 0.95);
+}
+
+.agent-node-type-default {
+  border-left-color: rgba(100, 116, 139, 0.95);
+}
+
+.agent-node-running {
+  animation: nodePulse 1.8s ease-in-out infinite;
+}
+
+@keyframes nodePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(250, 204, 21, 0), 0 8px 20px rgba(15, 23, 42, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(250, 204, 21, 0.2), 0 10px 24px rgba(15, 23, 42, 0.3);
+  }
+}
+
+.agent-type-badge.agent-type-researcher {
+  border-color: rgba(59, 130, 246, 0.45);
+  background-color: rgba(59, 130, 246, 0.12);
+  color: rgb(29, 78, 216);
+}
+
+.agent-type-badge.agent-type-writer {
+  border-color: rgba(16, 185, 129, 0.45);
+  background-color: rgba(16, 185, 129, 0.12);
+  color: rgb(4, 120, 87);
+}
+
+.agent-type-badge.agent-type-editor {
+  border-color: rgba(168, 85, 247, 0.45);
+  background-color: rgba(168, 85, 247, 0.12);
+  color: rgb(126, 34, 206);
+}
+
+.agent-type-badge.agent-type-default {
+  border-color: rgba(100, 116, 139, 0.45);
+  background-color: rgba(100, 116, 139, 0.12);
+  color: rgb(71, 85, 105);
+}
+
+html.dark .agent-type-badge.agent-type-researcher {
+  color: rgb(191, 219, 254);
+}
+
+html.dark .agent-type-badge.agent-type-writer {
+  color: rgb(167, 243, 208);
+}
+
+html.dark .agent-type-badge.agent-type-editor {
+  color: rgb(233, 213, 255);
+}
+
+html.dark .agent-type-badge.agent-type-default {
+  color: rgb(226, 232, 240);
+}
+
+.workflow-toast {
+  animation: toastIn 280ms ease-out;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.execution-flow .react-flow__edge.workflow-edge-running .react-flow__edge-path {
+  stroke: rgba(56, 189, 248, 0.9);
+  stroke-width: 2;
+  stroke-dasharray: 2 10;
+  stroke-linecap: round;
+  animation: edgeDots 1s linear infinite;
+}
+
+.execution-flow .react-flow__edge.workflow-edge-idle .react-flow__edge-path {
+  stroke: rgba(71, 85, 105, 0.7);
+  stroke-width: 1.8;
+}
+
+html.dark .execution-flow .react-flow__edge.workflow-edge-idle .react-flow__edge-path {
+  stroke: rgba(100, 116, 139, 0.8);
+}
+
+@keyframes edgeDots {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+.markdown-log > :first-child {
+  margin-top: 0;
+}
+
+.markdown-log > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-log h1,
+.markdown-log h2,
+.markdown-log h3,
+.markdown-log h4 {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.markdown-log p {
+  margin: 0.4rem 0;
+  line-height: 1.5;
+}
+
+.markdown-log ul,
+.markdown-log ol {
+  margin: 0.45rem 0;
+  padding-left: 1.1rem;
+}
+
+.markdown-log li {
+  margin: 0.2rem 0;
+}
+
+.markdown-log code {
+  border-radius: 6px;
+  background: rgba(148, 163, 184, 0.2);
+  padding: 0.08rem 0.35rem;
+  font-size: 0.82em;
+}
+
+html.dark .markdown-log code {
+  background: rgba(51, 65, 85, 0.65);
+}
