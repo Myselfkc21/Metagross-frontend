@@ -21,10 +21,13 @@ function AgentNode({ data }) {
   const typeClass = typeBorderClasses[data.type] ?? typeBorderClasses.default;
   const statusClass = statusPillClasses[data.status] ?? statusPillClasses.queue;
   const runningClass = data.status === "running" ? "agent-node-running" : "";
+  const selectedRing = data.isSelected
+    ? "ring-2 ring-cyan-400 ring-offset-2 ring-offset-slate-950"
+    : "";
 
   return (
     <div
-      className={`agent-node min-w-52 rounded-xl border px-3 py-2 text-left shadow-lg backdrop-blur ${typeClass} ${runningClass}`}
+      className={`agent-node min-w-52 cursor-pointer rounded-xl border px-3 py-2 text-left shadow-lg backdrop-blur transition-shadow ${typeClass} ${runningClass} ${selectedRing}`}
     >
       <Handle
         type="target"

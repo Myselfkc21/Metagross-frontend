@@ -18,38 +18,101 @@ const nodeTypes = {
   agent: AgentNode,
 };
 
-function statusBadgeClass(status = "queue") {
-  if (status === "completed") {
-    return "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200";
-  }
+const STATUS_LABEL = {
+  queue: "Queued",
+  running: "Running",
+  completed: "Completed",
+  failed: "Failed",
+};
 
-  if (status === "running") {
-    return "border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-200";
-  }
+const STATUS_COLORS = {
+  queue: "text-slate-400",
+  running: "text-yellow-400",
+  completed: "text-emerald-400",
+  failed: "text-rose-400",
+};
 
-  if (status === "failed") {
-    return "border-rose-500/50 bg-rose-500/15 text-rose-700 dark:text-rose-200";
-  }
+function OutputPanel({ node, onClose }) {
+  const status = node?.data?.status ?? "queue";
+  const output = node?.data?.output;
+  const agentId = node?.data?.id;
+  const agentType = node?.data?.type;
 
-  return "border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-200";
-}
+  return (
+    <div className="absolute bottom-0 right-0 top-0 z-30 flex w-[360px] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex items-start justify-between border-b border-slate-200 p-4 dark:border-slate-700">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            {agentType}
+          </p>
+          <h3 className="mt-0.5 text-base font-bold text-slate-900 dark:text-white">
+            {agentId}
+          </h3>
+          <span
+            className={`text-xs font-semibold ${STATUS_COLORS[status] ?? STATUS_COLORS.queue}`}
+          >
+            {STATUS_LABEL[status] ?? status}
+          </span>
+        </div>
+        <button
+          onClick={onClose}
+          className="ml-4 mt-0.5 rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          aria-label="Close panel"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
 
-function normalizeAgentType(type = "") {
-  if (["researcher", "writer", "editor"].includes(type)) {
-    return type;
-  }
-
-  return "default";
+      <div className="flex-1 overflow-y-auto p-4">
+        {status === "queue" && (
+          <p className="text-sm text-slate-400">
+            This agent hasn&apos;t started yet.
+          </p>
+        )}
+        {status === "running" && (
+          <div className="flex items-center gap-2 text-sm text-yellow-500">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-yellow-400" />
+            Running…
+          </div>
+        )}
+        {status === "failed" && (
+          <p className="text-sm text-rose-400">
+            {output ?? "This agent failed without an output."}
+          </p>
+        )}
+        {status === "completed" && output ? (
+          <article className="prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-200">
+            <ReactMarkdown>{output}</ReactMarkdown>
+          </article>
+        ) : status === "completed" && !output ? (
+          <p className="text-sm text-slate-400">No output available.</p>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function ExecutionViewPage() {
   const { executionId } = useParams();
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
-  const [logs, setLogs] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [showCompleteToast, setShowCompleteToast] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
 
   useEffect(() => {
     const loadExecution = async () => {
@@ -117,26 +180,10 @@ function ExecutionViewPage() {
       try {
         const payload = JSON.parse(event.data);
         const status = payload.status ?? "queue";
-        const timestamp = new Date().toLocaleTimeString();
-
-        setLogs((current) => [
-          {
-            agentId: payload.agentId,
-            agentName: payload.agentName ?? payload.agentId,
-            agentType: payload.agentType ?? payload.type,
-            status,
-            output: payload.output,
-            timestamp,
-          },
-          ...current,
-        ]);
 
         setNodes((currentNodes) =>
           currentNodes.map((node) => {
-            if (node.id !== payload.agentId) {
-              return node;
-            }
-
+            if (node.id !== payload.agentId) return node;
             return {
               ...node,
               data: {
@@ -149,17 +196,7 @@ function ExecutionViewPage() {
           }),
         );
       } catch {
-        setLogs((current) => [
-          {
-            agentId: "unknown",
-            agentName: "unknown",
-            agentType: "default",
-            status: "queue",
-            output: event.data,
-            timestamp: new Date().toLocaleTimeString(),
-          },
-          ...current,
-        ]);
+        // ignore parse errors
       }
     };
 
@@ -182,20 +219,29 @@ function ExecutionViewPage() {
     [nodes],
   );
 
-  const typeByAgentId = useMemo(() => {
-    return nodes.reduce((accumulator, node) => {
-      accumulator[node.id] = node.data.type;
-      return accumulator;
-    }, {});
-  }, [nodes]);
+  const renderedEdges = useMemo(
+    () =>
+      edges.map((edge) => ({
+        ...edge,
+        animated: isRunning,
+        className: isRunning ? "workflow-edge-running" : "workflow-edge-idle",
+      })),
+    [edges, isRunning],
+  );
 
-  const renderedEdges = useMemo(() => {
-    return edges.map((edge) => ({
-      ...edge,
-      animated: isRunning,
-      className: isRunning ? "workflow-edge-running" : "workflow-edge-idle",
-    }));
-  }, [edges, isRunning]);
+  const selectedNode = useMemo(
+    () => nodes.find((n) => n.id === selectedNodeId) ?? null,
+    [nodes, selectedNodeId],
+  );
+
+  const nodesWithSelection = useMemo(
+    () =>
+      nodes.map((n) => ({
+        ...n,
+        data: { ...n.data, isSelected: n.id === selectedNodeId },
+      })),
+    [nodes, selectedNodeId],
+  );
 
   useEffect(() => {
     if (!isComplete) {
@@ -213,119 +259,66 @@ function ExecutionViewPage() {
   }, [isComplete]);
 
   return (
-    <section className="grid h-[calc(100vh-4rem)] grid-cols-1 lg:grid-cols-[1fr_340px]">
-      <div className="relative border-b border-slate-300 lg:border-b-0 lg:border-r dark:border-slate-800">
-        {showCompleteToast ? (
-          <div className="workflow-toast absolute right-4 top-4 z-30 rounded-xl border border-emerald-500/40 bg-slate-950/85 px-4 py-2 text-sm font-semibold text-emerald-200 shadow-2xl backdrop-blur">
-            Workflow Complete
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="absolute left-4 right-4 top-4 z-20">
-            <ErrorState message={error} />
-          </div>
-        ) : null}
-
-        {isLoading ? (
-          <div className="flex h-full items-center justify-center">
-            <LoadingSpinner label="Connecting to execution..." />
-          </div>
-        ) : (
-          <ReactFlow
-            nodes={nodes}
-            edges={renderedEdges}
-            nodeTypes={nodeTypes}
-            fitView
-            nodesDraggable={false}
-            nodesConnectable={false}
-            elementsSelectable={false}
-            zoomOnDoubleClick={false}
-            className="execution-flow bg-slate-100 dark:bg-slate-950"
-          >
-            <Background
-              variant={BackgroundVariant.Dots}
-              color="#334155"
-              gap={18}
-              size={1.1}
-            />
-            <MiniMap
-              pannable
-              zoomable
-              className="!bg-slate-200 dark:!bg-slate-900"
-            />
-            <Controls className="!rounded-lg !border !border-slate-300 !bg-white dark:!border-slate-700 dark:!bg-slate-900" />
-          </ReactFlow>
-        )}
-      </div>
-
-      <aside className="h-full overflow-y-auto bg-white/80 p-4 dark:bg-slate-900/80">
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-          Live Logs
-        </h2>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Streaming events from execution {executionId}
-        </p>
-
-        <div className="mt-4 space-y-3">
-          {logs.length ? (
-            logs.map((log, index) => {
-              const agentType = normalizeAgentType(
-                log.agentType ?? typeByAgentId[log.agentId] ?? "default",
-              );
-
-              return (
-                <article
-                  key={`${log.agentId}-${log.timestamp}-${index}`}
-                  className="rounded-xl border border-slate-300 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-950"
-                >
-                  <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-cyan-700 dark:text-cyan-300">
-                        {log.agentName ?? log.agentId}
-                      </p>
-                      <div className="mt-1 flex items-center gap-2">
-                        <span
-                          className={`agent-type-badge inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide agent-type-${agentType}`}
-                        >
-                          {agentType === "default" ? "agent" : agentType}
-                        </span>
-                        <span
-                          className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusBadgeClass(
-                            log.status,
-                          )}`}
-                        >
-                          {log.status}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="shrink-0">{log.timestamp}</span>
-                  </div>
-
-                  {log.output ? (
-                    <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50/80 p-2 dark:border-slate-700 dark:bg-slate-900/60">
-                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                        Output
-                      </summary>
-                      <div className="markdown-log mt-2 text-sm text-slate-700 dark:text-slate-200">
-                        <ReactMarkdown>{String(log.output)}</ReactMarkdown>
-                      </div>
-                    </details>
-                  ) : (
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      No output yet.
-                    </p>
-                  )}
-                </article>
-              );
-            })
-          ) : (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Waiting for events...
-            </p>
-          )}
+    <section className="relative h-[calc(100vh-4rem)] overflow-hidden">
+      {showCompleteToast && (
+        <div className="workflow-toast absolute right-4 top-4 z-30 rounded-xl border border-emerald-500/40 bg-slate-950/85 px-4 py-2 text-sm font-semibold text-emerald-200 shadow-2xl backdrop-blur">
+          Workflow Complete
         </div>
-      </aside>
+      )}
+
+      {error && (
+        <div className="absolute left-4 right-4 top-4 z-20">
+          <ErrorState message={error} />
+        </div>
+      )}
+
+      {!isLoading && !error && (
+        <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-full border border-slate-300/50 bg-white/80 px-3 py-1 text-xs text-slate-500 shadow backdrop-blur dark:border-slate-700/50 dark:bg-slate-900/80 dark:text-slate-400">
+          Tap a node to see its output
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex h-full items-center justify-center">
+          <LoadingSpinner label="Connecting to execution..." />
+        </div>
+      ) : (
+        <ReactFlow
+          nodes={nodesWithSelection}
+          edges={renderedEdges}
+          nodeTypes={nodeTypes}
+          fitView
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={true}
+          zoomOnDoubleClick={false}
+          onNodeClick={(_, node) =>
+            setSelectedNodeId((prev) => (prev === node.id ? null : node.id))
+          }
+          onPaneClick={() => setSelectedNodeId(null)}
+          className="execution-flow bg-slate-100 dark:bg-slate-950"
+        >
+          <Background
+            variant={BackgroundVariant.Dots}
+            color="#334155"
+            gap={18}
+            size={1.1}
+          />
+          <MiniMap
+            pannable
+            zoomable
+            className="!bg-slate-200 dark:!bg-slate-900"
+          />
+          <Controls className="!rounded-lg !border !border-slate-300 !bg-white dark:!border-slate-700 dark:!bg-slate-900" />
+        </ReactFlow>
+      )}
+
+      {selectedNode && (
+        <OutputPanel
+          node={selectedNode}
+          onClose={() => setSelectedNodeId(null)}
+        />
+      )}
     </section>
   );
 }
