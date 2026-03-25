@@ -85,7 +85,7 @@ function Pagination({ pagination, onPageChange, isLoading }) {
 }
 
 // Executions table used in both global section and workflow history modal
-function ExecutionsTable({ executions, navigate }) {
+function ExecutionsTable({ executions, navigate, showInput = false }) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-300 bg-white/90 dark:border-slate-700/80 dark:bg-slate-900/80">
       <table className="w-full text-sm">
@@ -97,6 +97,11 @@ function ExecutionsTable({ executions, navigate }) {
             <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400">
               Workflow
             </th>
+            {showInput ? (
+              <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400">
+                Input
+              </th>
+            ) : null}
             <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400">
               Status
             </th>
@@ -112,6 +117,7 @@ function ExecutionsTable({ executions, navigate }) {
             const status = extractExecutionStatus(execution);
             const statusStyle =
               EXECUTION_STATUS_STYLES[status] ?? EXECUTION_STATUS_STYLES.queue;
+            const input = execution?.input ?? execution?.inputData ?? null;
 
             return (
               <tr
@@ -124,6 +130,20 @@ function ExecutionsTable({ executions, navigate }) {
                 <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                   {extractExecutionWorkflowName(execution)}
                 </td>
+                {showInput ? (
+                  <td className="max-w-[200px] px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
+                    {input ? (
+                      <span
+                        className="block truncate"
+                        title={typeof input === "string" ? input : JSON.stringify(input)}
+                      >
+                        {typeof input === "string" ? input : JSON.stringify(input)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 dark:text-slate-600">—</span>
+                    )}
+                  </td>
+                ) : null}
                 <td className="px-4 py-3">
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${statusStyle}`}
@@ -255,6 +275,7 @@ function WorkflowHistoryModal({ workflow, onClose, navigate }) {
               <ExecutionsTable
                 executions={paginatedExecutions}
                 navigate={navigate}
+                showInput
               />
               <Pagination
                 pagination={pagination}
