@@ -23,6 +23,7 @@ const STATUS_LABEL = {
   running: "Running",
   completed: "Completed",
   failed: "Failed",
+  waiting: "Waiting for Input",
 };
 
 const STATUS_COLORS = {
@@ -30,13 +31,23 @@ const STATUS_COLORS = {
   running: "text-yellow-400",
   completed: "text-emerald-400",
   failed: "text-rose-400",
+  waiting: "text-amber-400",
 };
 
-function OutputPanel({ node, onClose }) {
+const HITL_WAITING_STATUSES = new Set(["running", "waiting", "pending"]);
+
+function isHITLWaiting(node) {
+  return (
+    node?.id === "hitl" && HITL_WAITING_STATUSES.has(node?.data?.status)
+  );
+}
+
+function OutputPanel({ node, onClose, onHITLDecision, isSubmittingHITL }) {
   const status = node?.data?.status ?? "queue";
   const output = node?.data?.output;
   const agentId = node?.data?.id;
   const agentType = node?.data?.type;
+  const hitlWaiting = isHITLWaiting(node);
 
   return (
     <div className="absolute bottom-0 right-0 top-0 z-30 flex w-[360px] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
@@ -77,29 +88,62 @@ function OutputPanel({ node, onClose }) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        {status === "queue" && (
-          <p className="text-sm text-slate-400">
-            This agent hasn&apos;t started yet.
-          </p>
-        )}
-        {status === "running" && (
-          <div className="flex items-center gap-2 text-sm text-yellow-500">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-yellow-400" />
-            Running…
+        {hitlWaiting ? (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              This step requires your approval before the workflow can continue.
+            </p>
+            {output ? (
+              <article className="prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-200">
+                <ReactMarkdown>{output}</ReactMarkdown>
+              </article>
+            ) : null}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isSubmittingHITL}
+                onClick={() => onHITLDecision("accept")}
+                className="flex-1 rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Accept
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingHITL}
+                onClick={() => onHITLDecision("reject")}
+                className="flex-1 rounded-md border border-rose-500/70 px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:text-rose-400"
+              >
+                Reject
+              </button>
+            </div>
           </div>
+        ) : (
+          <>
+            {status === "queue" && (
+              <p className="text-sm text-slate-400">
+                This agent hasn&apos;t started yet.
+              </p>
+            )}
+            {status === "running" && (
+              <div className="flex items-center gap-2 text-sm text-yellow-500">
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-yellow-400" />
+                Running…
+              </div>
+            )}
+            {status === "failed" && (
+              <p className="text-sm text-rose-400">
+                {output ?? "This agent failed without an output."}
+              </p>
+            )}
+            {status === "completed" && output ? (
+              <article className="prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-200">
+                <ReactMarkdown>{output}</ReactMarkdown>
+              </article>
+            ) : status === "completed" && !output ? (
+              <p className="text-sm text-slate-400">No output available.</p>
+            ) : null}
+          </>
         )}
-        {status === "failed" && (
-          <p className="text-sm text-rose-400">
-            {output ?? "This agent failed without an output."}
-          </p>
-        )}
-        {status === "completed" && output ? (
-          <article className="prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-200">
-            <ReactMarkdown>{output}</ReactMarkdown>
-          </article>
-        ) : status === "completed" && !output ? (
-          <p className="text-sm text-slate-400">No output available.</p>
-        ) : null}
       </div>
     </div>
   );
@@ -113,6 +157,8 @@ function ExecutionViewPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showCompleteToast, setShowCompleteToast] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [isSubmittingHITL, setIsSubmittingHITL] = useState(false);
+  const [hitlError, setHitlError] = useState("");
 
   useEffect(() => {
     const loadExecution = async () => {
@@ -205,6 +251,27 @@ function ExecutionViewPage() {
     };
   }, [executionId]);
 
+  const hitlPendingNode = useMemo(
+    () => nodes.find((n) => isHITLWaiting(n)) ?? null,
+    [nodes],
+  );
+
+  const handleHITLDecision = async (decision) => {
+    setIsSubmittingHITL(true);
+    setHitlError("");
+    try {
+      await api.patch(`/execution/${executionId}/${decision}`);
+    } catch (err) {
+      setHitlError(
+        err?.response?.data?.message ||
+          err.message ||
+          "Failed to submit decision.",
+      );
+    } finally {
+      setIsSubmittingHITL(false);
+    }
+  };
+
   const isComplete = useMemo(() => {
     if (!nodes.length) return false;
     return nodes.every((node) => node.data.status === "completed");
@@ -262,6 +329,40 @@ function ExecutionViewPage() {
         </div>
       )}
 
+      {hitlPendingNode && (
+        <div className="absolute left-1/2 top-4 z-30 w-full max-w-md -translate-x-1/2 px-4">
+          <div className="rounded-xl border border-amber-400/50 bg-amber-50 p-4 shadow-xl dark:bg-amber-950/60">
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+              Human approval required
+            </p>
+            <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">
+              The workflow is paused and waiting for your decision.
+            </p>
+            {hitlError ? (
+              <p className="mt-2 text-xs text-rose-500">{hitlError}</p>
+            ) : null}
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                disabled={isSubmittingHITL}
+                onClick={() => handleHITLDecision("accept")}
+                className="flex-1 rounded-md bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSubmittingHITL ? "Submitting…" : "Accept"}
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingHITL}
+                onClick={() => handleHITLDecision("reject")}
+                className="flex-1 rounded-md border border-rose-500/70 px-4 py-1.5 text-sm font-semibold text-rose-600 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:text-rose-400"
+              >
+                {isSubmittingHITL ? "Submitting…" : "Reject"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="absolute left-4 right-4 top-4 z-20">
           <ErrorState message={error} />
@@ -313,6 +414,8 @@ function ExecutionViewPage() {
         <OutputPanel
           node={selectedNode}
           onClose={() => setSelectedNodeId(null)}
+          onHITLDecision={handleHITLDecision}
+          isSubmittingHITL={isSubmittingHITL}
         />
       )}
     </section>
