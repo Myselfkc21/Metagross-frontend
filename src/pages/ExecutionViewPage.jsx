@@ -37,7 +37,8 @@ const STATUS_COLORS = {
 const HITL_TERMINAL_STATUSES = new Set(["completed", "failed"]);
 
 function isHITLNode(node) {
-  return node?.id?.toLowerCase() === "hitl";
+  // Matches: hitl, HITL, hitl-2, HITL-3, hitl-anything …
+  return /^hitl(-\d+)?$/i.test(node?.id ?? "");
 }
 
 function OutputPanel({ node, onClose, onHITLDecision, isSubmittingHITL }) {
@@ -251,23 +252,22 @@ function ExecutionViewPage() {
   }, [executionId]);
 
   const hitlPendingNode = useMemo(() => {
-    const hitlNode = nodes.find((n) => isHITLNode(n));
-    if (!hitlNode) return null;
-
-    // Already resolved
-    if (HITL_TERMINAL_STATUSES.has(hitlNode.data?.status)) return null;
-
-    // Execution paused at HITL: no node is actively running but at least one completed
+    // Execution paused: no node running but at least one completed
     const hasRunning = nodes.some((n) => n.data?.status === "running");
     const hasCompleted = nodes.some((n) => n.data?.status === "completed");
-    if (!hasRunning && hasCompleted) return hitlNode;
+    if (hasRunning || !hasCompleted) return null;
 
-    return null;
+    // Find the first HITL node that hasn't been resolved yet
+    return (
+      nodes.find(
+        (n) => isHITLNode(n) && !HITL_TERMINAL_STATUSES.has(n.data?.status),
+      ) ?? null
+    );
   }, [nodes]);
 
-  // Reset dismissed flag whenever a fresh HITL node appears
+  // Reset dismissed flag whenever a different HITL node becomes active
   useEffect(() => {
-    if (hitlPendingNode) setHitlDismissed(false);
+    if (hitlPendingNode?.id) setHitlDismissed(false);
   }, [hitlPendingNode?.id]);
 
   const handleHITLDecision = async (decision) => {
