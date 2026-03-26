@@ -38,7 +38,8 @@ const HITL_WAITING_STATUSES = new Set(["running", "waiting", "pending"]);
 
 function isHITLWaiting(node) {
   return (
-    node?.id === "hitl" && HITL_WAITING_STATUSES.has(node?.data?.status)
+    node?.id?.toLowerCase() === "hitl" &&
+    HITL_WAITING_STATUSES.has(node?.data?.status)
   );
 }
 
