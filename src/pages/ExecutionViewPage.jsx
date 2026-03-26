@@ -34,13 +34,10 @@ const STATUS_COLORS = {
   waiting: "text-amber-400",
 };
 
-const HITL_WAITING_STATUSES = new Set(["running", "waiting", "pending"]);
+const HITL_TERMINAL_STATUSES = new Set(["completed", "failed"]);
 
-function isHITLWaiting(node) {
-  return (
-    node?.id?.toLowerCase() === "hitl" &&
-    HITL_WAITING_STATUSES.has(node?.data?.status)
-  );
+function isHITLNode(node) {
+  return node?.id?.toLowerCase() === "hitl";
 }
 
 function OutputPanel({ node, onClose, onHITLDecision, isSubmittingHITL }) {
@@ -48,7 +45,7 @@ function OutputPanel({ node, onClose, onHITLDecision, isSubmittingHITL }) {
   const output = node?.data?.output;
   const agentId = node?.data?.id;
   const agentType = node?.data?.type;
-  const hitlWaiting = isHITLWaiting(node);
+  const hitlWaiting = isHITLNode(node) && !HITL_TERMINAL_STATUSES.has(status);
 
   return (
     <div className="absolute bottom-0 right-0 top-0 z-30 flex w-[360px] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
@@ -252,10 +249,20 @@ function ExecutionViewPage() {
     };
   }, [executionId]);
 
-  const hitlPendingNode = useMemo(
-    () => nodes.find((n) => isHITLWaiting(n)) ?? null,
-    [nodes],
-  );
+  const hitlPendingNode = useMemo(() => {
+    const hitlNode = nodes.find((n) => isHITLNode(n));
+    if (!hitlNode) return null;
+
+    // Already resolved
+    if (HITL_TERMINAL_STATUSES.has(hitlNode.data?.status)) return null;
+
+    // Execution paused at HITL: no node is actively running but at least one completed
+    const hasRunning = nodes.some((n) => n.data?.status === "running");
+    const hasCompleted = nodes.some((n) => n.data?.status === "completed");
+    if (!hasRunning && hasCompleted) return hitlNode;
+
+    return null;
+  }, [nodes]);
 
   const handleHITLDecision = async (decision) => {
     setIsSubmittingHITL(true);
