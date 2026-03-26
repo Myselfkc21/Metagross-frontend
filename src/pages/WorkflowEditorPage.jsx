@@ -111,6 +111,34 @@ function WorkflowEditorPage() {
     setDraftNode({ id: "", type: draftNode.type, prompt: "" });
   };
 
+  const addHITLNode = () => {
+    setNodes((currentNodes) => {
+      // Generate a unique HITL id: hitl → hitl-2 → hitl-3 …
+      const existingHITL = currentNodes.filter((n) =>
+        n.id.toLowerCase().startsWith("hitl"),
+      ).length;
+      const hitlId = existingHITL === 0 ? "hitl" : `hitl-${existingHITL + 1}`;
+
+      return [
+        ...currentNodes,
+        {
+          id: hitlId,
+          type: "agent",
+          position: {
+            x: 100 + (currentNodes.length % 4) * 230,
+            y: 100 + Math.floor(currentNodes.length / 4) * 140,
+          },
+          data: {
+            id: hitlId,
+            type: "hitl",
+            prompt: "Human approval required before proceeding.",
+            tools: [],
+          },
+        },
+      ];
+    });
+  };
+
   const handleSave = async () => {
     if (!workflow) return;
 
@@ -267,6 +295,16 @@ function WorkflowEditorPage() {
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Create nodes and connect them on the canvas.
         </p>
+
+        {/* Quick-add HITL node */}
+        <button
+          type="button"
+          onClick={addHITLNode}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-amber-400/60 bg-amber-400/10 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-400/20 dark:text-amber-300"
+        >
+          <span>✋</span>
+          Add HITL Agent
+        </button>
 
         <form onSubmit={addNode} className="mt-4 space-y-3">
           <label className="block">
