@@ -157,6 +157,7 @@ function ExecutionViewPage() {
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [isSubmittingHITL, setIsSubmittingHITL] = useState(false);
   const [hitlError, setHitlError] = useState("");
+  const [hitlDismissed, setHitlDismissed] = useState(false);
 
   useEffect(() => {
     const loadExecution = async () => {
@@ -264,11 +265,17 @@ function ExecutionViewPage() {
     return null;
   }, [nodes]);
 
+  // Reset dismissed flag whenever a fresh HITL node appears
+  useEffect(() => {
+    if (hitlPendingNode) setHitlDismissed(false);
+  }, [hitlPendingNode?.id]);
+
   const handleHITLDecision = async (decision) => {
     setIsSubmittingHITL(true);
     setHitlError("");
     try {
       await api.patch(`/execution/${executionId}/${decision}`);
+      setHitlDismissed(true);
     } catch (err) {
       setHitlError(
         err?.response?.data?.message ||
@@ -337,35 +344,49 @@ function ExecutionViewPage() {
         </div>
       )}
 
-      {hitlPendingNode && (
-        <div className="absolute left-1/2 top-4 z-30 w-full max-w-md -translate-x-1/2 px-4">
-          <div className="rounded-xl border border-amber-400/50 bg-amber-50 p-4 shadow-xl dark:bg-amber-950/60">
-            <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-              Human approval required
-            </p>
-            <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">
-              The workflow is paused and waiting for your decision.
-            </p>
-            {hitlError ? (
-              <p className="mt-2 text-xs text-rose-500">{hitlError}</p>
-            ) : null}
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                disabled={isSubmittingHITL}
-                onClick={() => handleHITLDecision("accept")}
-                className="flex-1 rounded-md bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSubmittingHITL ? "Submitting…" : "Accept"}
-              </button>
-              <button
-                type="button"
-                disabled={isSubmittingHITL}
-                onClick={() => handleHITLDecision("reject")}
-                className="flex-1 rounded-md border border-rose-500/70 px-4 py-1.5 text-sm font-semibold text-rose-600 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:text-rose-400"
-              >
-                {isSubmittingHITL ? "Submitting…" : "Reject"}
-              </button>
+      {hitlPendingNode && !hitlDismissed && (
+        <div className="pointer-events-none absolute inset-0 z-40 flex items-start justify-center pt-6">
+          <div className="pointer-events-auto w-full max-w-sm rounded-2xl border border-amber-400/40 bg-white/80 shadow-2xl backdrop-blur-md dark:bg-slate-900/80">
+            {/* Header */}
+            <div className="flex items-center gap-3 border-b border-amber-400/30 px-5 py-4">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-400/20 text-base">
+                ✋
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                  Human approval required
+                </p>
+                <p className="text-xs text-amber-700/80 dark:text-amber-400">
+                  Workflow paused — waiting for your decision
+                </p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4">
+              {hitlError ? (
+                <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
+                  {hitlError}
+                </p>
+              ) : null}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={isSubmittingHITL}
+                  onClick={() => handleHITLDecision("accept")}
+                  className="flex-1 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmittingHITL ? "Submitting…" : "✓ Accept"}
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingHITL}
+                  onClick={() => handleHITLDecision("reject")}
+                  className="flex-1 rounded-lg border border-rose-400/60 px-4 py-2 text-sm font-semibold text-rose-600 shadow-sm hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                >
+                  {isSubmittingHITL ? "Submitting…" : "✕ Reject"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
