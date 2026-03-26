@@ -274,7 +274,9 @@ function ExecutionViewPage() {
     setIsSubmittingHITL(true);
     setHitlError("");
     try {
-      await api.patch(`/execution/${executionId}/${decision}`);
+      await api.patch(
+        `/execution/${executionId}/${hitlPendingNode.id}/${decision}`,
+      );
       setHitlDismissed(true);
     } catch (err) {
       setHitlError(
